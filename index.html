@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ScholarFlow - Academic Workspace</title>
+  
+  <!-- Neo-Brutalist Google Fonts: DM Sans & Space Mono -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,100..1000;1,9..40,100..1000&family=Space+Mono:ital,wght@0,400;0,700;1,400;1,700&display=swap" rel="stylesheet">
+
+  <!-- Standalone Styling -->
+  <link rel="stylesheet" href="styles.css">
+
+  <!-- Marked.js for Markdown Rendering -->
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+
+  <!-- DOMPurify for XSS Sanitization -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.9/purify.min.js"></script>
+
+  <!-- PDF.js for Client-Side PDF Parsing (Served locally to avoid CORS worker SecurityError) -->
+  <script src="pdf.min.js"></script>
+  <script>
+    if (window.pdfjsLib) {
+      pdfjsLib.GlobalWorkerOptions.workerSrc = 'pdf.worker.min.js';
+    }
+  </script>
+
+  <!-- Tesseract.js for OCR on Scanned Document Pages & Diagram Images -->
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+
+  <!-- Mammoth.js for Word (.docx) Parsing -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
+
+  <!-- Supabase JS Client -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+  <!-- html2pdf for Exporting Notes -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+</head>
+<body>
+
+  <!-- Neo-Brutalist Geometric Grid Background -->
+  <div class="ambient-background">
+    <div class="grid-background"></div>
+  </div>
+
+  <!-- Top Navigation Header -->
+  <header class="app-header">
+    <div class="header-left">
+      <!-- Left Sidebar Toggle Icon [ | ] -->
+      <button id="toggle-left-sidebar-btn" class="icon-btn" title="Toggle Sidebar">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="square">
+          <rect width="18" height="18" x="3" y="3"/><path d="M9 3v18"/>
+        </svg>
+      </button>
+
+      <div class="brand-badge">
+        <div class="brand-icon-box">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <rect x="3" y="3" width="18" height="18"/><path d="m9 12 2 2 4-4"/>
+          </svg>
+        </div>
+        <span class="brand-title">ScholarFlow</span>
+      </div>
+    </div>
+
+    <div class="header-right">
+      <div class="header-user-badge">
+        <span>Welcome back, <strong id="header-user-name">Student</strong>!</span>
+      </div>
+
+      <!-- Right Sidebar Toggle Icon [ | ] -->
+      <button id="toggle-right-sidebar-btn" class="icon-btn" title="Toggle Action Items">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="square">
+          <rect width="18" height="18" x="3" y="3"/><path d="M15 3v18"/>
+        </svg>
+      </button>
+    </div>
+  </header>
+
+  <!-- Main Viewport Layout -->
+  <div class="app-viewport">
+
+    <!-- LEFT SIDEBAR: History & New Session -->
+    <aside id="left-sidebar" class="sidebar sidebar-left">
+      <div class="sidebar-content">
+        <!-- New Session Button -->
+        <button id="new-session-btn" class="btn-secondary" style="width: 100%;">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <path d="M5 12h14"/><path d="M12 5v14"/>
+          </svg>
+          <span>New Study Session</span>
+        </button>
+
+        <!-- Sessions History List -->
+        <div>
+          <div class="section-label">
+            <span>Study Sessions</span>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l4 2"/>
+            </svg>
+          </div>
+          <div id="sessions-list" class="sessions-list-container">
+            <div class="empty-state-text">Loading past sessions...</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Left Bottom Profile & Workspace Settings -->
+      <div class="sidebar-footer" id="profile-container" title="Click to view or edit student profile">
+        <div class="profile-info-wrap">
+          <div class="profile-avatar-box">
+            <span id="profile-avatar">?</span>
+          </div>
+          <div>
+            <div id="profile-name" class="profile-name-text">Student</div>
+          </div>
+        </div>
+
+        <button id="settings-trigger-btn" class="icon-btn" title="Change Name / Profile">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>
+          </svg>
+        </button>
+      </div>
+    </aside>
+
+    <!-- CENTER WORKSPACE: Document Synthesis & Study Notes Studio -->
+    <main class="center-workspace" id="center-workspace">
+
+      <!-- DEFAULT BLANK STATE: File Dropzone & Queue -->
+      <div id="upload-stage" class="upload-card-wrapper">
+        <div class="hero-heading">
+          <h2>Academic Document Synthesis</h2>
+          <p>Drop your lecture notes, slides, or syllabus files to generate a comprehensive topic summary and high-yield revision notes side-by-side.</p>
+        </div>
+
+        <!-- Drag & Drop Zone -->
+        <div id="drop-zone" class="dropzone-box">
+          <input type="file" id="file-input" multiple accept=".pdf,.docx,.txt,.md,.pptx,image/*" style="display: none;">
+          
+          <div class="dropzone-icon">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M12 12v6"/><path d="m15 15-3-3-3 3"/>
+            </svg>
+          </div>
+
+          <h3 class="dropzone-title">
+            Choose files or drag & drop here
+          </h3>
+          <p class="dropzone-subtitle">
+            Supports PDF, Word (.docx), PowerPoint (.pptx), Markdown, and Screenshot images
+          </p>
+
+          <button type="button" onclick="document.getElementById('file-input').click()" class="btn-primary btn-sm">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/><path d="M12 10v6"/><path d="M9 13h6"/>
+            </svg>
+            <span>Browse Documents</span>
+          </button>
+        </div>
+
+        <!-- File Queue Container -->
+        <div id="file-queue-container" class="file-queue-section hidden">
+          <div class="file-queue-header">
+            <span>Selected Files (<span id="file-count">0</span>)</span>
+            <button id="clear-files-btn" class="clear-btn">Clear all</button>
+          </div>
+
+          <div id="file-queue" class="queue-grid"></div>
+
+          <button id="process-files-btn" class="btn-primary" style="width: 100%; padding: 14px;">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"/>
+            </svg>
+            <span>Generate Summary & Revision Notes</span>
+          </button>
+        </div>
+
+        <!-- Processing Indicator (Neo-Brutalist Block Stepper) -->
+        <div id="processing-indicator" class="neo-loader-wrap hidden">
+          <div class="neo-loader-blocks">
+            <div class="neo-block b1"></div>
+            <div class="neo-block b2"></div>
+            <div class="neo-block b3"></div>
+            <div class="neo-block b4"></div>
+          </div>
+          <h4 class="neo-loader-title">Generating Summary & Revision Notes...</h4>
+          <p class="neo-loader-desc">Extracting high-yield topics, formulas, exam tips, and revision notes</p>
+        </div>
+      </div>
+
+      <!-- ACTIVE PROCESSED STATE: Side-by-Side Dual View -->
+      <div id="results-stage" class="hidden results-stage-container">
+        
+        <!-- Results Header Bar -->
+        <div class="results-header-bar">
+          <div class="results-header-left">
+            <div class="results-icon-badge">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                <path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1-2.5-2.5Z"/><path d="M6 6h10"/><path d="M6 10h10"/>
+              </svg>
+            </div>
+            <div>
+              <h2 id="session-display-title" class="session-main-title">Lecture Notes Synthesis</h2>
+              <div id="session-file-badges" class="session-badges-wrap"></div>
+            </div>
+          </div>
+
+          <button id="new-doc-btn" class="btn-secondary btn-sm">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/>
+            </svg>
+            <span>Upload More</span>
+          </button>
+        </div>
+
+        <!-- Side-by-Side Dual View (Summary & Revision Notes) -->
+        <div class="dual-container">
+          
+          <!-- Column 1: Comprehensive Topic Summary -->
+          <div class="result-column">
+            <div class="column-header">
+              <div class="column-header-title">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                  <line x1="21" x2="3" y1="6" y2="6"/><line x1="15" x2="3" y1="12" y2="12"/><line x1="17" x2="3" y1="18" y2="18"/>
+                </svg>
+                <span>Comprehensive Topic Summary</span>
+              </div>
+              <div class="column-actions">
+                <button id="export-summary-pdf" class="btn-secondary btn-sm" title="Download Summary PDF">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/>
+                  </svg>
+                  <span>PDF</span>
+                </button>
+                <button id="share-summary-btn" class="icon-btn" title="Copy / Share Summary">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                    <rect width="14" height="14" x="8" y="8" rx="0"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/>
+                  </svg>
+                </button>
+              </div>
+            </div>
+            <div id="summary-content" class="column-body prose-custom"></div>
+          </div>
+
+          <!-- Column 2: High-Yield Revision Notes -->
+          <div class="result-column">
+            <div class="column-header">
+              <div class="column-header-title">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                  <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+                </svg>
+                <span>High-Yield Revision Notes</span>
+              </div>
+              <div class="column-actions">
+                <button id="export-revision-pdf" class="btn-secondary btn-sm" title="Download Revision Notes PDF">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/>
+                  </svg>
+                  <span>PDF</span>
+                </button>
+                <button id="share-revision-btn" class="icon-btn" title="Copy / Share Revision Notes">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                    <rect width="14" height="14" x="8" y="8" rx="0"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/>
+                  </svg>
+                </button>
+              </div>
+            </div>
+            <div id="revision-content" class="column-body prose-custom"></div>
+          </div>
+
+        </div>
+
+        <!-- Interactive Exam Quiz Launch Banner -->
+        <div id="quiz-launch-section" class="quiz-launch-banner">
+          <div class="quiz-banner-content">
+            <div class="quiz-badge">EXAM READINESS CHECK</div>
+            <h3 class="quiz-banner-title">Ready to Test Your Knowledge?</h3>
+            <p class="quiz-banner-desc">Take an interactive multiple-choice quiz automatically generated from this study material. Questions scale with content depth with instant score feedback.</p>
+          </div>
+          <button id="start-quiz-btn" class="btn-primary quiz-launch-btn">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+            </svg>
+            <span>Launch Quiz in New Tab ↗</span>
+          </button>
+        </div>
+      </div>
+    </main>
+
+    <!-- RIGHT SIDEBAR: Action Items & AI Deadline Tracker -->
+    <aside id="right-sidebar" class="sidebar sidebar-right">
+      <div class="sidebar-content">
+        <div class="sidebar-section-header">
+          <h3 class="sidebar-heading">Action Items</h3>
+        </div>
+
+        <!-- Task Input Box -->
+        <div class="task-input-box">
+          <textarea id="task-nl-input" rows="3" placeholder="What needs to be done? e.g. 'Complete maths assignment before 12th Sept'" class="task-textarea"></textarea>
+          <div class="task-input-actions">
+            <button id="add-task-btn" class="btn-primary btn-sm">Add Task</button>
+          </div>
+        </div>
+
+        <!-- Parsed Task Confirmation Card (Appears after parsing) -->
+        <div id="parsed-task-card" class="parsed-card hidden">
+          <div class="parsed-tag">PARSED TASK</div>
+          
+          <div class="parsed-info-rows">
+            <div class="parsed-row">
+              <span class="parsed-lbl">Task:</span>
+              <span id="parsed-task-title" class="parsed-val">Submit Assignment</span>
+            </div>
+            <div class="parsed-row">
+              <span class="parsed-lbl">Due:</span>
+              <span id="parsed-task-due" class="parsed-val">Sep 15, 2026</span>
+            </div>
+          </div>
+
+          <div class="parsed-card-actions">
+            <button id="confirm-task-btn" class="btn-primary btn-sm">Confirm</button>
+            <button id="cancel-task-btn" class="btn-secondary btn-sm">Cancel</button>
+          </div>
+        </div>
+
+        <!-- Pending Tasks List -->
+        <div>
+          <div class="section-label">PENDING TASKS</div>
+          <div id="pending-tasks-list" class="tasks-container"></div>
+        </div>
+      </div>
+
+      <!-- Bottom Overdue / Completed Counters -->
+      <div class="counter-grid">
+        <div class="counter-card">
+          <div id="overdue-count" class="counter-num red">0</div>
+          <div class="counter-lbl">Overdue</div>
+        </div>
+        <div class="counter-card">
+          <div id="completed-count" class="counter-num green">0</div>
+          <div class="counter-lbl">Completed</div>
+        </div>
+      </div>
+    </aside>
+
+  </div>
+
+  <!-- Onboarding Modal (Neo-Brutalist Dialog) -->
+  <div id="onboarding-modal" class="modal-backdrop hidden">
+    <div class="modal-box">
+      <div class="modal-badge">STUDENT ONBOARDING</div>
+      <h3 class="modal-title">ScholarFlow</h3>
+      <p class="modal-desc">Enter your full name to configure your academic workspace.</p>
+
+      <form id="onboarding-form" class="modal-form">
+        <div class="neo-input-group">
+          <label for="student-name-input" class="neo-input-label">YOUR FULL NAME</label>
+          <input type="text" id="student-name-input" class="neo-input" placeholder="e.g. Ramesh or Shivang" required autocomplete="name">
+        </div>
+        <button type="submit" class="btn-primary" style="width: 100%; padding: 12px; margin-top: 8px;">Enter My Workspace</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Core App Logic -->
+  <script src="app.js"></script>
+</body>
+</html>
