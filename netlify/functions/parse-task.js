@@ -1,7 +1,7 @@
 // Dedicated API key for deadline & task parsing (isolated from document summarization)
 const DEADLINE_TASK_KEY = process.env.DEADLINE_TASK_KEY || "sk-6KVG8miVAHFWexETDhnvAr4mWxZiuCS8atbCqagRTIfdFZBc";
 const AGENTROUTER_URL = "https://agentrouter.org/v1/chat/completions";
-const MODEL_CANDIDATES = ["glm-5.3-flash", "glm-5.3"];
+const MODEL_CANDIDATES = ["glm-5.3-flash", "glm-5.3", "deepseek-v4-flash"];
 
 exports.handler = async (event) => {
   const corsHeaders = {

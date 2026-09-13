@@ -1541,3 +1541,36 @@ body {
     transform: rotate(360deg);
   }
 }
+
+/* =========================================================
+   PORTABLE PDF EXPORT & PRINT STYLING
+   ========================================================= */
+@media print {
+  body {
+    background: #ffffff !important;
+    color: #111111 !important;
+    font-size: 11pt !important;
+  }
+  .app-header, .sidebar, .drop-zone, .file-queue-container, .modal-overlay, .panel-actions, .quiz-cta-banner {
+    display: none !important;
+  }
+  .workspace-layout {
+    display: block !important;
+    padding: 0 !important;
+  }
+  .markdown-body {
+    background: #ffffff !important;
+    color: #111111 !important;
+    border: none !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+  }
+  .markdown-body h1, .markdown-body h2, .markdown-body h3 {
+    page-break-after: avoid !important;
+    color: #000000 !important;
+  }
+  .markdown-body table, .markdown-body pre, .markdown-body blockquote {
+    page-break-inside: avoid !important;
+  }
+}
+

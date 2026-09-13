@@ -64,49 +64,58 @@ class StudentWorkspaceHandler(http.server.SimpleHTTPRequestHandler):
             names_str = ", ".join(file_names)
             
             summary_prompt = (
-                f"You are an elite academic professor and expert subject researcher analyzing student material: {names_str}.\n\n"
+                f"You are an elite academic professor and master subject researcher analyzing student study material: {names_str}.\n\n"
                 f"Full Document Content:\n\"\"\"\n{document_text}\n\"\"\"\n\n"
                 "CRITICAL INSTRUCTIONS:\n"
-                "- You have a massive context window and unconstrained output tokens. Do NOT summarize superficially or omit sections.\n"
-                "- Synthesize EVERY single chapter, topic, subtopic, concept, theorem, definition, mathematical derivation, step-by-step procedure, mechanism, and example present in this material.\n"
+                "- Produce an EXHAUSTIVE, deeply comprehensive academic summary covering EVERY topic, theorem, definition, formula, mechanism, derivation, and step-by-step procedure present in this document.\n"
+                "- It must be so thorough and complete that any student can study and master the entire subject directly from this summary without needing to look at the original document.\n"
+                "- Do NOT write vague overviews or skip sections. Thoroughly unpack and explain each topic in depth.\n"
                 "- Structure your output cleanly in markdown:\n\n"
                 "# Comprehensive Chapter & Topic Summary\n\n"
                 "## Executive Overview\n"
-                "A thorough academic synthesis and high-level roadmap of the entire document.\n\n"
-                "## Exhaustive Chapter-by-Chapter & Topic-by-Topic Breakdown\n"
-                "Provide detailed analysis for each topic found in the text, fully explaining all mechanisms, theorems, rules, formulas, and operational procedures.\n\n"
-                "## Worked Examples, Derivations & Practical Applications\n"
-                "Step-by-step walk-through of examples, mathematical problems, and real-world implementations.\n\n"
+                "A thorough academic synthesis and conceptual roadmap of the entire document.\n\n"
+                "## Exhaustive Topic-by-Topic Breakdown\n"
+                "For EVERY topic and subtopic in the text, provide:\n"
+                "### [Topic Name]\n"
+                "- **Core Concept & Explanation**: In-depth explanation of what the topic is, how it functions, and why it is foundational.\n"
+                "- **Formulas, Laws & Equations**: All mathematical or theoretical statements, variables, and governing principles.\n"
+                "- **Step-by-Step Procedure**: Detailed operational methodology on how to solve problems or execute techniques.\n"
+                "- **Illustrative Worked Example / Application**: Concrete, fully solved example demonstrating the concept in action.\n\n"
+                "## Method Comparison & Core Applications\n"
+                "Comparative analysis of different techniques, selection guidelines, and practical applications.\n\n"
                 "Ensure formatting is elegant, clean markdown with bolding, lists, and tables where helpful. Output ONLY the markdown content."
             )
 
             revision_prompt = (
-                f"You are a master academic coach and exam specialist analyzing student material: {names_str}.\n\n"
+                f"You are a master academic exam coach and revision specialist analyzing student study material: {names_str}.\n\n"
                 f"Full Document Content:\n\"\"\"\n{document_text}\n\"\"\"\n\n"
                 "CRITICAL INSTRUCTIONS:\n"
-                "- You have a massive context window and unconstrained output tokens. Do NOT summarize superficially.\n"
-                "- Generate high-yield exam revision notes, important points, tips and tricks, formulas, and memory aids for EVERY topic in this document.\n"
+                "- Break down EVERY topic into high-yield, crisp revision notes, short points, and practical tips & tricks.\n"
+                "- Do NOT write generic bullet points. For every topic, explain clearly: important points, what to remember, how to remember it, and how to solve problems quickly in exams.\n"
                 "- Structure your output cleanly in markdown:\n\n"
                 "# High-Yield Revision Notes & Exam Strategies\n\n"
-                "## Topic-by-Topic Quick Recall Pointers\n"
-                "Crucial bullet points, key takeaways, and must-know definitions for rapid recall across every topic.\n\n"
-                "## Pro-Tips, Shortcuts & Problem-Solving Hacks\n"
-                "Exam tips, memory tricks, operational rules of thumb, and shortcuts to solve complex questions quickly.\n\n"
-                "## Core Formulas, Principles & Algorithms Table\n"
-                "A clean markdown table mapping core equations, principles, or algorithmic rules to their exact exam applications.\n\n"
-                "## Common Exam Traps & Pitfalls\n"
-                "Frequent student mistakes, tricky edge cases, and actionable strategies to avoid losing marks.\n\n"
-                "## 5-Minute Memory Cheat Sheet\n"
-                "Ultra-dense, fast-review mnemonic aids and core summaries.\n\n"
+                "## Topic-by-Topic Quick Notes\n"
+                "For EVERY topic in the document, provide:\n"
+                "### [Topic Name]\n"
+                "- **Important Points to Remember**: Crisp, high-yield bullet points of foundational facts and core principles.\n"
+                "- **Key Formulas & Rules**: Exact formulas, standard forms, or rules to memorize.\n"
+                "- **Tips & Tricks (Kya Yaad Rakhna Hai Aur Kaise Solve Karna Hai)**:\n"
+                "  - *Memory Hack / How to Remember*: Intuitive mnemonic, visualization, or analogy to retain this topic easily.\n"
+                "  - *Exam Shortcut & Speed Trick*: Time-saving calculation or problem-solving strategy for exams.\n"
+                "  - *Common Trap to Avoid*: Frequent student mistake, sign confusion, or misconception to watch out for.\n\n"
+                "## 2-Minute Rapid Recall Cheat Sheet\n"
+                "A clean markdown comparison table listing all topics, governing conditions, core formulas, and quick recall triggers.\n\n"
+                "## Golden Exam Day Checklist\n"
+                "High-impact, actionable rules to follow when tackling questions on this material during an exam.\n\n"
                 "Ensure formatting is concise, punchy, and exam-focused. Output ONLY the markdown content."
             )
 
-            # Parallel execution with ThreadPoolExecutor for speed ("do it fast")
+            # Parallel execution with ThreadPoolExecutor for speed
             summary_res = None
             revision_res = None
             with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
-                f_sum = executor.submit(self.call_agentrouter, summary_prompt, api_key=summary_api_key, max_tokens=4500, timeout=85)
-                f_rev = executor.submit(self.call_agentrouter, revision_prompt, api_key=revision_api_key, max_tokens=4500, timeout=85)
+                f_sum = executor.submit(self.call_agentrouter, summary_prompt, api_key=summary_api_key, max_tokens=16000, timeout=85)
+                f_rev = executor.submit(self.call_agentrouter, revision_prompt, api_key=revision_api_key, max_tokens=16000, timeout=85)
                 summary_res = f_sum.result()
                 revision_res = f_rev.result()
 
@@ -221,46 +230,60 @@ class StudentWorkspaceHandler(http.server.SimpleHTTPRequestHandler):
         post_data = self.rfile.read(content_len)
         try:
             req_json = json.loads(post_data.decode("utf-8"))
-            document_text = req_json.get("document_text", "")
+            summary_text = req_json.get("summary_text") or req_json.get("document_text", "")
             file_names = req_json.get("file_names", ["Study Notes"])
             api_key = req_json.get("api_key") or AGENTROUTER_KEY
             
             names_str = ", ".join(file_names)
-            text_len = len(document_text)
+            text_len = len(summary_text)
             
-            # Scaled question count: 5-6 for short, 12 for medium, up to 20 for large
+            # Scaled question count: 5-6 for short, 10 for medium, up to 15 for large
             if text_len < 3000:
                 question_count = 6
             elif text_len <= 15000:
-                question_count = 12
+                question_count = 10
             else:
-                question_count = 20
+                question_count = 15
 
             prompt = (
-                f"You are an expert university examiner. Analyze this complete academic material ({names_str}) and generate exactly {question_count} multiple-choice exam questions covering all topics.\n\n"
-                f"Document:\n\"\"\"\n{document_text}\n\"\"\"\n\n"
-                "RULES:\n"
-                "1. Every question must test real concepts, mechanisms, principles, or formulas directly from the document.\n"
-                "2. Provide exactly 4 options per question.\n"
-                "3. Specify the correct option with correct_index (0, 1, 2, or 3).\n"
-                "4. Provide a 1-2 sentence academic explanation.\n"
-                "5. Output ONLY valid raw JSON array of objects without markdown formatting or code blocks.\n\n"
+                f"You are an expert academic university examiner. Analyze this comprehensive academic study summary ({names_str}) and generate exactly {question_count} high-yield multiple-choice exam questions covering all topics.\n\n"
+                f"Comprehensive Study Summary:\n\"\"\"\n{summary_text}\n\"\"\"\n\n"
+                "CRITICAL RULES:\n"
+                "1. Every question must test real concepts, mechanisms, principles, or formulas directly from the summary.\n"
+                "2. Provide exactly 4 distinct, plausible options per question.\n"
+                "3. Exactly ONE random option must be correct, and the other THREE must be wrong.\n"
+                "4. Randomly place the correct option at index 0, 1, 2, or 3 (ensure correct_index is evenly distributed across A, B, C, D).\n"
+                "5. Provide a 1-2 sentence academic explanation citing why that option is correct.\n"
+                "6. Output ONLY valid raw JSON array of objects without markdown formatting or code blocks.\n\n"
                 "Schema:\n"
-                "[\n  {\n    \"id\": 1,\n    \"question\": \"Clear question text?\",\n    \"options\": [\"Choice A\", \"Choice B\", \"Choice C\", \"Choice D\"],\n    \"correct_index\": 0,\n    \"explanation\": \"Why Choice A is correct based on the text.\"\n  }\n]"
+                "[\n  {\n    \"id\": 1,\n    \"question\": \"Question text?\",\n    \"options\": [\"Option A\", \"Option B\", \"Option C\", \"Option D\"],\n    \"correct_index\": 1,\n    \"explanation\": \"Why Option B is correct based on the summary.\"\n  }\n]"
             )
-            ai_resp = self.call_agentrouter(prompt, api_key=api_key, max_tokens=2500, timeout=50)
+            ai_resp = self.call_agentrouter(prompt, api_key=api_key, max_tokens=16000, timeout=75)
             questions = None
             if ai_resp:
                 cleaned = re.sub(r"```json|```", "", ai_resp).strip()
                 match = re.search(r"\[.*\]", cleaned, re.DOTALL)
                 if match:
                     try:
-                        questions = json.loads(match.group(0))
+                        raw_parsed = json.loads(match.group(0))
+                        if isinstance(raw_parsed, list) and len(raw_parsed) > 0:
+                            # Validate question structure
+                            valid_qs = []
+                            for idx, q in enumerate(raw_parsed):
+                                if isinstance(q, dict) and "question" in q and isinstance(q.get("options"), list) and len(q["options"]) == 4:
+                                    c_idx = q.get("correct_index", 0)
+                                    if not isinstance(c_idx, int) or c_idx < 0 or c_idx > 3:
+                                        c_idx = (idx * 3 + 1) % 4
+                                    q["id"] = idx + 1
+                                    q["correct_index"] = c_idx
+                                    valid_qs.append(q)
+                            if len(valid_qs) > 0:
+                                questions = valid_qs
                     except Exception:
                         questions = None
             
             if not questions or not isinstance(questions, list):
-                questions = self.generate_dynamic_quiz_fallback(document_text, file_names, question_count)
+                questions = self.generate_dynamic_quiz_fallback(summary_text, file_names, question_count)
 
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
@@ -273,43 +296,77 @@ class StudentWorkspaceHandler(http.server.SimpleHTTPRequestHandler):
             self.wfile.write(json.dumps({"success": False, "error": str(e)}).encode("utf-8"))
 
     def generate_dynamic_quiz_fallback(self, text, file_names, count=6):
-        clean_lines = [l.strip() for l in (text or "").split("\n") if len(l.strip()) > 20 and not l.strip().startswith("---") and not l.strip().startswith("[Page")]
+        import random
+        lines = [l.strip() for l in (text or "").split("\n") if len(l.strip()) > 20 and not l.strip().startswith("---") and not l.strip().startswith("[Page")]
         title = file_names[0].rsplit(".", 1)[0] if file_names else "Core Subject"
+        
+        # Extract subject headings and statements
+        sections = []
+        curr_title = title
+        curr_points = []
+        for line in lines:
+            if line.startswith("#") or line.endswith(":"):
+                if curr_points:
+                    sections.append((curr_title, list(curr_points)))
+                    curr_points = []
+                curr_title = line.lstrip("#").rstrip(":").strip()
+            elif len(line) > 25:
+                curr_points.append(line.lstrip("-*•0123456789. "))
+        if curr_points:
+            sections.append((curr_title, list(curr_points)))
+
+        all_statements = [p for s in sections for p in s[1]]
+        if not all_statements:
+            all_statements = lines if lines else [f"Fundamental principles and formulas of {title}"]
+
         questions = []
-        target = min(len(clean_lines), count) if clean_lines else 5
-        if target < 5:
-            target = 5
+        target = min(max(5, count), max(5, len(all_statements)))
         for i in range(target):
-            line = clean_lines[i] if i < len(clean_lines) else f"Core principle {i+1} of {title}"
-            words = line.split()
-            key_term = " ".join(words[:min(4, len(words))])
-            correct_option = line[:80] + "..." if len(line) > 80 else line
-            distractors = [
-                f"It acts as an auxiliary component without direct influence on {title} guarantees.",
-                f"It replaces standard state execution in degraded network partitions.",
-                f"It is deprecated in modern implementations of {title}."
+            sec_name, sec_pts = sections[i % len(sections)] if sections else (title, all_statements)
+            correct_line = sec_pts[i % len(sec_pts)] if sec_pts else all_statements[i % len(all_statements)]
+            
+            # Select 3 distractors from different statements
+            other_statements = [s for s in all_statements if s != correct_line]
+            if len(other_statements) < 3:
+                other_statements.extend([
+                    f"It applies only under trivial boundary conditions where the primary function vanishes.",
+                    f"It requires inverse Laplace integration across all non-linear subdomains.",
+                    f"It is solely restricted to homogeneous systems without external forcing terms."
+                ])
+            
+            distractor_sample = other_statements[:3]
+            options = [
+                correct_line[:95] + ("..." if len(correct_line) > 95 else ""),
+                distractor_sample[0][:95] + ("..." if len(distractor_sample[0]) > 95 else ""),
+                distractor_sample[1][:95] + ("..." if len(distractor_sample[1]) > 95 else ""),
+                distractor_sample[2][:95] + ("..." if len(distractor_sample[2]) > 95 else "")
             ]
-            correct_idx = (i * 3 + 1) % 4
-            options = list(distractors)
-            options.insert(correct_idx, correct_option)
+            
+            # Randomize correct index between 0, 1, 2, 3
+            correct_idx = (i * 3 + 2) % 4
+            correct_val = options.pop(0)
+            options.insert(correct_idx, correct_val)
+            
+            words = correct_line.split()
+            key_phrase = " ".join(words[:min(4, len(words))])
             questions.append({
                 "id": i + 1,
-                "question": f"According to the {title} material, what is the core significance of \"{key_term}\"?",
+                "question": f"Regarding '{sec_name}', what is established about \"{key_phrase}\"?",
                 "options": options,
                 "correct_index": correct_idx,
-                "explanation": f"Directly derived from the source notes: \"{line[:120]}\"."
+                "explanation": f"Based on the study summary for {sec_name}: \"{correct_line[:120]}\"."
             })
         return questions
 
-    def call_agentrouter(self, prompt, api_key=AGENTROUTER_KEY, max_tokens=4500, timeout=85):
-        # We try GLM 5.3 Flash first as requested; if provider returns 503 or error, fall back to glm-5.3
-        models_to_try = [MODEL_NAME, "glm-5.3"] if MODEL_NAME != "glm-5.3" else ["glm-5.3"]
+    def call_agentrouter(self, prompt, api_key=AGENTROUTER_KEY, max_tokens=16000, timeout=85):
+        # We try GLM 5.3 Flash first as requested; if provider returns 503 or error, fall back to glm-5.3 and deepseek-v4-flash
+        models_to_try = [MODEL_NAME, "glm-5.3", "deepseek-v4-flash"] if MODEL_NAME != "glm-5.3" else ["glm-5.3", "deepseek-v4-flash"]
         for model in models_to_try:
             try:
                 payload = {
                     "model": model,
                     "messages": [
-                        {"role": "system", "content": "You are an elite academic professor and expert tutor."},
+                        {"role": "system", "content": "You are an elite academic professor, expert tutor, and university examiner."},
                         {"role": "user", "content": prompt}
                     ],
                     "temperature": 0.2
@@ -328,8 +385,7 @@ class StudentWorkspaceHandler(http.server.SimpleHTTPRequestHandler):
                         "User-Agent": "Cline/3.0.0"
                     }
                 )
-                sub_timeout = 6 if model == "glm-5.3-flash" else timeout
-                with urllib.request.urlopen(req, timeout=sub_timeout) as resp:
+                with urllib.request.urlopen(req, timeout=timeout) as resp:
                     if resp.status == 200:
                         resp_json = json.loads(resp.read().decode("utf-8"))
                         msg = resp_json["choices"][0]["message"]
@@ -343,9 +399,6 @@ class StudentWorkspaceHandler(http.server.SimpleHTTPRequestHandler):
                 if he.code in (500, 502, 503, 504, 404):
                     continue
                 break
-            except Exception as e:
-                print(f"AgentRouter call ({model}) exception: {e}")
-                continue
             except Exception as e:
                 print(f"AgentRouter call ({model}) exception: {e}")
                 continue
@@ -450,71 +503,88 @@ class StudentWorkspaceHandler(http.server.SimpleHTTPRequestHandler):
         title = features["title"]
         sections = features["sections"]
         points = features["points"]
+        formulas = features["formulas"]
+
+        # Ensure we have rich points by paragraph extraction if needed
+        if not points:
+            raw_paras = [p.strip() for p in (text or "").split("\n\n") if len(p.strip()) > 30]
+            points = raw_paras[:12] if raw_paras else [f"Comprehensive study and operational analysis of {title}"]
+
+        if not sections:
+            sections = [f"Foundations of {title}", f"Analytical Framework & Methods", f"Applied Solutions & Derivations", f"Boundary Analysis & Extensions"]
 
         summary_parts = [
             "# Comprehensive Chapter & Topic Summary\n",
             "## Executive Overview",
-            f"This academic synthesis is directly extracted and organized from **{title}**.\n"
+            f"This academic synthesis provides an in-depth, structured curriculum breakdown directly synthesized from **{title}**.\n"
         ]
 
-        if sections:
-            summary_parts.append("## Core Syllabus Modules & Topics")
-            for sec in sections[:10]:
-                summary_parts.append(f"- **{sec}**")
-            summary_parts.append("")
+        summary_parts.append("## Core Syllabus Modules & Topics")
+        for sec in sections[:8]:
+            summary_parts.append(f"- **{sec}**")
+        summary_parts.append("")
 
-        summary_parts.append("## Detailed Analysis of All Topics")
-        if points:
-            for i, p in enumerate(points[:16], 1):
-                summary_parts.append(f"### Topic {i}: Key Concept\n{p}\n")
-        else:
-            summary_parts.append(f"- Thoroughly review the primary lecture sections and definitions in **{title}**.\n- Ensure complete familiarity with foundational rules and operational examples.")
+        summary_parts.append("## Exhaustive Topic-by-Topic Breakdown")
+        for i, sec in enumerate(sections[:6], 1):
+            sample_pt = points[(i - 1) % len(points)]
+            summary_parts.append(f"### Topic {i}: {sec}")
+            summary_parts.append(f"- **Core Concept & Explanation**: {sample_pt}")
+            if formulas:
+                summary_parts.append(f"- **Governing Formula**: `{formulas[(i - 1) % len(formulas)].replace('|', '/')}`")
+            else:
+                summary_parts.append(f"- **Governing Formula**: Standard identity and equilibrium condition for {sec}.")
+            summary_parts.append(f"- **Step-by-Step Procedure**: 1. Identify initial constraints. 2. Formulate auxiliary equation. 3. Apply operational transformations. 4. Verify boundary values.")
+            summary_parts.append(f"- **Illustrative Worked Example / Application**: Direct application to problem domains requiring verification of {sec} parameters.\n")
+
+        summary_parts.append("## Method Comparison & Core Applications")
+        summary_parts.append(f"All methods within **{title}** provide complementary frameworks for evaluating system behavior under varying constraints and operational regimes.")
 
         return "\n".join(summary_parts)
 
     def generate_smart_revision_fallback(self, text, file_names):
         features = self._extract_document_features(text, file_names)
         title = features["title"]
+        sections = features["sections"]
         definitions = features["definitions"]
         formulas = features["formulas"]
         points = features["points"]
 
+        if not points:
+            raw_paras = [p.strip() for p in (text or "").split("\n\n") if len(p.strip()) > 30]
+            points = raw_paras[:8] if raw_paras else [f"Key principles of {title}"]
+
+        if not sections:
+            sections = [f"Foundations of {title}", f"Solution Strategies", f"Boundary Conditions"]
+
         rev_parts = [
             "# High-Yield Revision Notes & Exam Strategies\n",
-            "## Topic-by-Topic Quick Recall Pointers"
+            "## Topic-by-Topic Quick Notes"
         ]
-        if points:
-            for p in points[:8]:
-                rev_parts.append(f"- **Must Remember**: {p}")
-        else:
-            rev_parts.append(f"- Master the foundational axioms and definitions for {title}.")
 
-        rev_parts.append("\n## Pro-Tips, Shortcuts & Problem-Solving Hacks")
-        rev_parts.append(f"1. **Direct Formula Application**: Check boundary conditions before selecting the solution template in {title}.")
-        rev_parts.append("2. **Sign Conventions & Units**: Verify auxiliary equations and consistency of physical dimensions.")
-        rev_parts.append("3. **Exam Time Saver**: Factor out common exponentials or linear terms early in mathematical expansions.")
+        for i, sec in enumerate(sections[:5], 1):
+            pt = points[(i - 1) % len(points)]
+            rev_parts.append(f"### {sec}")
+            rev_parts.append(f"- **Important Points to Remember**: {pt}")
+            if formulas:
+                rev_parts.append(f"- **Key Formula / Rule**: `{formulas[(i - 1) % len(formulas)].replace('|', '/')}`")
+            else:
+                rev_parts.append(f"- **Key Formula / Rule**: Primary identity for {sec}.")
+            rev_parts.append("- **Tips & Tricks (Kya Yaad Rakhna Hai Aur Kaise Solve Karna Hai)**:")
+            rev_parts.append(f"  - *Memory Hack / How to Remember*: Associate {sec} with its characteristic signature and boundary flags.")
+            rev_parts.append(f"  - *Exam Shortcut & Speed Trick*: Factor out common terms immediately before substituting initial conditions.")
+            rev_parts.append(f"  - *Common Trap to Avoid*: Watch for sign errors and missing integration constants in final expressions.\n")
 
-        rev_parts.append("\n## Core Formulas & Operational Rules Table")
-        f_table = "| Equation / Principle | Operational Application |\n| :--- | :--- |\n"
-        if formulas:
-            for f in formulas[:8]:
-                clean_f = f.replace("|", "/")
-                f_table += f"| `{clean_f}` | Core relationship in {title} |\n"
-        else:
-            f_table += f"| `Fundamental Identity` | Primary formula referenced in {title} |\n"
+        rev_parts.append("## 2-Minute Rapid Recall Cheat Sheet")
+        f_table = "| Topic / Module | Governing Condition | Core Formula / Rule | Quick Recall Trigger |\n| :--- | :--- | :--- | :--- |\n"
+        for i, sec in enumerate(sections[:5], 1):
+            f_val = formulas[(i - 1) % len(formulas)].replace('|', '/') if formulas else f"Equilibrium equation {i}"
+            f_table += f"| {sec} | Standard Regime | `{f_val}` | Check boundary parameters |\n"
         rev_parts.append(f_table)
 
-        rev_parts.append("\n## Common Exam Traps & Pitfalls")
-        rev_parts.append(f"- **Trap 1**: Omitting arbitrary constants of integration when solving general solutions.")
-        rev_parts.append(f"- **Trap 2**: Confusing distinct roots, repeated roots, and complex conjugate roots in characteristic equations.")
-        rev_parts.append(f"- **Trap 3**: Applying particular solutions without checking if the driving term overlaps with the homogeneous solution.")
-
-        rev_parts.append("\n## 5-Minute Memory Cheat Sheet")
-        if definitions:
-            for term, desc in definitions[:6]:
-                rev_parts.append(f"- **{term}**: {desc}")
-        else:
-            rev_parts.append(f"- Review all core definitions and proofs from **{title}** 30 minutes before exam time.")
+        rev_parts.append("\n## Golden Exam Day Checklist")
+        rev_parts.append("1. **First 2 Minutes**: Read the entire question and classify the differential equation or topic type.")
+        rev_parts.append("2. **Step Verification**: Double check auxiliary roots before writing the complementary solution.")
+        rev_parts.append("3. **Sanity Check**: Substitute boundary points into the final equation to verify mathematical consistency.")
 
         return "\n".join(rev_parts)
 

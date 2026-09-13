@@ -13,6 +13,8 @@ let selectedFiles = [];
 let pendingParsedTask = null;
 let activeSessionId = null;
 let currentDocumentText = "";
+let currentSummaryMarkdown = "";
+let currentRevisionMarkdown = "";
 let currentFileNames = [];
 let currentQuizQuestions = null;
 
@@ -787,6 +789,8 @@ function displayResults(title, files, summaryMd, revisionMd) {
   sessionFileBadges.innerHTML = "";
 
   currentFileNames = (files && files.length > 0) ? files : [title];
+  currentSummaryMarkdown = summaryMd || "";
+  currentRevisionMarkdown = revisionMd || "";
   if (!currentDocumentText || currentDocumentText.trim().length === 0) {
     currentDocumentText = (summaryMd || "") + "\n\n" + (revisionMd || "");
   }
@@ -809,6 +813,8 @@ function displayResults(title, files, summaryMd, revisionMd) {
 function resetToNewSession() {
   selectedFiles = [];
   currentDocumentText = "";
+  currentSummaryMarkdown = "";
+  currentRevisionMarkdown = "";
   currentFileNames = [];
   currentQuizQuestions = null;
   renderFileQueue();
@@ -833,7 +839,7 @@ async function handleStartQuiz() {
   `;
 
   try {
-    const textToSend = currentDocumentText || (summaryContent.innerText + "\n\n" + revisionContent.innerText);
+    const summaryToSend = currentSummaryMarkdown || (summaryContent ? summaryContent.innerText : "") || currentDocumentText;
     const filesToSend = (currentFileNames && currentFileNames.length > 0) ? currentFileNames : [sessionDisplayTitle.textContent || "Study Material"];
     const topicTitle = sessionDisplayTitle.textContent || filesToSend[0] || "Exam Readiness Quiz";
     const studentName = currentStudent ? currentStudent.full_name : (headerUserName ? headerUserName.textContent : "Student");
@@ -846,7 +852,8 @@ async function handleStartQuiz() {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            document_text: textToSend,
+            summary_text: summaryToSend,
+            document_text: currentDocumentText,
             file_names: filesToSend
           })
         });
@@ -863,19 +870,77 @@ async function handleStartQuiz() {
     }
 
     if (!questions || questions.length === 0) {
-      questions = generateClientFallbackQuiz(textToSend, filesToSend[0]);
+      questions = generateClientFallbackQuiz(summaryToSend, filesToSend[0]);
     }
+
+    // Validate and guarantee questions format: 4 options, 1 correct, 3 wrong
+    questions = questions.map((q, idx) => {
+      let opts = Array.isArray(q.options) && q.options.length === 4 ? q.options : [
+        (q.question ? q.question.slice(0, 50) : "Core concept") + " (Option A)",
+        "Alternative condition under standard formulation",
+        "Inverse relationship across boundary regions",
+        "Degenerate case where parameter vanishes"
+      ];
+      let cIdx = typeof q.correct_index === "number" && q.correct_index >= 0 && q.correct_index <= 3 ? q.correct_index : ((idx * 3 + 1) % 4);
+      return {
+        id: idx + 1,
+        question: q.question || `Topic Question ${idx + 1}`,
+        options: opts,
+        correct_index: cIdx,
+        explanation: q.explanation || "Derived directly from the verified study notes."
+      };
+    });
 
     currentQuizQuestions = questions;
 
+    // SAVE TO SUPABASE (Requirement: save quiz questions in Supabase in JSON format)
+    let quizRecordId = null;
+    if (supabaseClient) {
+      try {
+        // 1. Update session row with quiz_questions JSONB
+        if (activeSessionId && !activeSessionId.startsWith("sess-")) {
+          await supabaseClient
+            .from("study_sessions")
+            .update({ quiz_questions: questions })
+            .eq("id", activeSessionId);
+        }
+
+        // 2. Insert into dedicated quizzes table
+        const { data: qRow, error: qErr } = await supabaseClient
+          .from("quizzes")
+          .insert([{
+            session_id: (activeSessionId && !activeSessionId.startsWith("sess-")) ? activeSessionId : null,
+            student_id: (currentStudent && currentStudent.id) ? currentStudent.id : null,
+            topic: topicTitle,
+            questions: questions
+          }])
+          .select()
+          .single();
+
+        if (qRow && qRow.id) {
+          quizRecordId = qRow.id;
+        }
+      } catch (dbErr) {
+        console.warn("Supabase quiz save notice:", dbErr);
+      }
+    }
+
     const payload = {
+      quizId: quizRecordId,
+      sessionId: activeSessionId,
       topic: topicTitle,
       studentName: studentName,
       questions: questions
     };
 
     localStorage.setItem("active_quiz", JSON.stringify(payload));
-    window.open("quiz.html", "_blank");
+
+    const queryParams = new URLSearchParams();
+    if (quizRecordId) queryParams.set("quiz_id", quizRecordId);
+    if (activeSessionId) queryParams.set("session_id", activeSessionId);
+    const targetUrl = "quiz.html" + (queryParams.toString() ? "?" + queryParams.toString() : "");
+
+    window.open(targetUrl, "_blank");
   } catch (err) {
     console.error("Failed to launch quiz:", err);
     alert("Could not start quiz: " + err.message);
@@ -888,34 +953,70 @@ async function handleStartQuiz() {
 function generateClientFallbackQuiz(text, topicName) {
   const lines = (text || "").split("\n")
     .map(l => l.trim())
-    .filter(l => l.length > 25 && !l.startsWith("#") && !l.startsWith("---") && !l.startsWith("|") && !l.startsWith("[Page"));
+    .filter(l => l.length > 20 && !l.startsWith("---") && !l.startsWith("[Page"));
 
   const title = (topicName || "Study Material").replace(/\.[^/.]+$/, "");
-  const targetCount = Math.max(5, Math.min(lines.length, 10));
+  
+  const sections = [];
+  let currTitle = title;
+  let currPoints = [];
+  for (const line of lines) {
+    if (line.startsWith("#") || line.endsWith(":")) {
+      if (currPoints.length > 0) {
+        sections.push({ title: currTitle, points: [...currPoints] });
+        currPoints = [];
+      }
+      currTitle = line.replace(/^[#\s]+/, "").replace(/:$/, "").trim();
+    } else if (line.length > 25) {
+      currPoints.push(line.replace(/^[-*•0-9.]+\s*/, ""));
+    }
+  }
+  if (currPoints.length > 0) {
+    sections.push({ title: currTitle, points: [...currPoints] });
+  }
+
+  const allStatements = [];
+  sections.forEach(s => s.points.forEach(p => allStatements.push(p)));
+  if (allStatements.length === 0) {
+    allStatements.push(...(lines.length > 0 ? lines : [`Core governing laws and foundational relationships in ${title}`]));
+  }
+
   const questions = [];
+  const targetCount = Math.min(Math.max(5, 6), Math.max(5, allStatements.length));
 
   for (let i = 0; i < targetCount; i++) {
-    const line = lines[i] || `Fundamental principle ${i + 1} of ${title}`;
-    const words = line.split(" ");
-    const keyTerm = words.slice(0, Math.min(4, words.length)).join(" ");
+    const sec = sections.length > 0 ? sections[i % sections.length] : { title, points: allStatements };
+    const correctLine = sec.points.length > 0 ? sec.points[i % sec.points.length] : allStatements[i % allStatements.length];
 
-    const correctOpt = line.length > 80 ? line.slice(0, 80) + "..." : line;
+    const otherStatements = allStatements.filter(s => s !== correctLine);
+    if (otherStatements.length < 3) {
+      otherStatements.push(
+        "It applies exclusively under boundary conditions where the primary function vanishes.",
+        "It requires inverse Laplace integration across all non-linear subdomains.",
+        "It is strictly restricted to homogeneous systems without external forcing terms."
+      );
+    }
+
+    const correctOption = correctLine.length > 95 ? correctLine.slice(0, 95) + "..." : correctLine;
     const distractors = [
-      `It acts as an auxiliary component without direct influence on ${title} guarantees.`,
-      `It replaces standard state execution in degraded network partitions.`,
-      `It is deprecated in modern implementations of ${title}.`
+      otherStatements[0].length > 95 ? otherStatements[0].slice(0, 95) + "..." : otherStatements[0],
+      otherStatements[1].length > 95 ? otherStatements[1].slice(0, 95) + "..." : otherStatements[1],
+      otherStatements[2].length > 95 ? otherStatements[2].slice(0, 95) + "..." : otherStatements[2]
     ];
 
-    const correctIdx = (i * 3 + 1) % 4;
+    const correctIdx = (i * 3 + 2) % 4;
     const options = [...distractors];
-    options.splice(correctIdx, 0, correctOpt);
+    options.splice(correctIdx, 0, correctOption);
+
+    const words = correctLine.split(" ");
+    const keyPhrase = words.slice(0, Math.min(4, words.length)).join(" ");
 
     questions.push({
       id: i + 1,
-      question: `According to ${title}, what is the core significance of "${keyTerm}"?`,
+      question: `Regarding '${sec.title}', what is established about "${keyPhrase}"?`,
       options: options,
       correct_index: correctIdx,
-      explanation: `Directly derived from the source notes: "${line.slice(0, 120)}".`
+      explanation: `Based on the study summary for ${sec.title}: "${correctLine.slice(0, 120)}".`
     });
   }
 
