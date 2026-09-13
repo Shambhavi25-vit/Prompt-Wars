@@ -1,0 +1,10 @@
+{
+  "name": "scholarflow",
+  "version": "1.0.0",
+  "description": "AI-Powered Student Workspace",
+  "main": "index.html",
+  "scripts": {
+    "start": "python server.py"
+  },
+  "license": "MIT"
+}

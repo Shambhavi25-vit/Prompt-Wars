@@ -1,0 +1,23 @@
+[build]
+  publish = "."
+  functions = "netlify/functions"
+
+[[redirects]]
+  from = "/api/ai/process-documents"
+  to = "/.netlify/functions/process-documents"
+  status = 200
+
+[[redirects]]
+  from = "/api/ai/parse-task"
+  to = "/.netlify/functions/parse-task"
+  status = 200
+
+[[redirects]]
+  from = "/api/ai/generate-quiz"
+  to = "/.netlify/functions/generate-quiz"
+  status = 200
+
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
