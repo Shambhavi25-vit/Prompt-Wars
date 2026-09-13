@@ -1,4 +1,4 @@
-# ScholarFlow - AI Student Workspace
+﻿# ScholarFlow - AI Student Workspace
 
 Live Application: https://scholarflow-workspace.netlify.app
 

@@ -169,6 +169,7 @@ Ensure formatting is concise, punchy, and exam-focused. Output ONLY the markdown
   }
 };
 
+
 function extractDocumentFeatures(text, fileNames) {
   const rawTitle = fileNames && fileNames.length > 0 ? fileNames[0] : "Academic Document";
   const title = rawTitle.replace(/\.[^/.]+$/, "");
@@ -278,3 +279,4 @@ function generateSmartFallback(text, fileNames) {
   const r = generateSmartRevisionFallback(text, fileNames);
   return `${s}\n\n---\n\n${r}`;
 }
+
